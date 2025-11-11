@@ -1,0 +1,37 @@
+{
+  "name": "wbot",
+  "version": "1.0.0",
+  "description": "Prototype de bot WhatsApp utilisant Baileys (non-officiel). Fourni comme base pour :\r - modération de groupes\r - view-once unlock\r - taggers (tag all / tag admins)\r - sauvegarde messages / média\r - scheduler de messages planifiés",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.21",
+    "axios": "^1.13.2",
+    "cron": "^4.3.4",
+    "knex": "^3.1.0",
+    "mime-types": "^3.0.1",
+    "node-cron": "^4.2.1",
+    "pino": "^10.1.0",
+    "qrcode-terminal": "^0.12.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@types/knex": "^0.15.2",
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^24.10.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
