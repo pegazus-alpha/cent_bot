@@ -9,6 +9,7 @@
 import type { WASocket } from '@whiskeysockets/baileys';
 import { handleCommand } from './commandHandler.js';
 import { handleGroupManagementCommands } from './groupManagementHandler.js';
+import { handleInteractiveCommand } from './interactiveGroupHandler.js';
 import { handleViewOnce } from '../modules/viewonce.js';
 import { moderateMessage } from '../modules/moderation.js';
 import { saveMessage, createOrUpdateUser } from '../services/db.js';
@@ -39,13 +40,21 @@ export async function handleMessage(sock: WASocket, upsert: any) {
       // Commands (messages starting with / or !)
       const text = (message.message?.conversation || message.message?.extendedTextMessage?.text || '').trim();
       if (text && (text.startsWith('/') || text.startsWith('!'))) {
-        // D'abord vérifier les commandes de gestion des groupes (privé uniquement)
-        const handled = await handleGroupManagementCommands(sock, message, text);
+        // D'abord vérifier les commandes interactives (priorité)
+        const interactiveHandled = await handleInteractiveCommand(sock, from, text);
         
-        // Si pas géré par les commandes de groupe, essayer les commandes normales
-        if (!handled) {
-          await handleCommand(sock, message, text);
+        if (!interactiveHandled) {
+          // Ensuite vérifier les commandes de gestion des groupes (privé uniquement)
+          const handled = await handleGroupManagementCommands(sock, message, text);
+          
+          // Si pas géré par les commandes de groupe, essayer les commandes normales
+          if (!handled) {
+            await handleCommand(sock, message, text);
+          }
         }
+      } else if (text) {
+        // Vérifier si c'est une réponse à une session interactive (même sans / ou !)
+        const interactiveHandled = await handleInteractiveCommand(sock, from, text);
       }
 
       // TODO: add routing to AI processor (Groq/Ollama) - optional

@@ -151,5 +151,27 @@ export async function updateWelcomeMessage(groupId: string, message: string): Pr
   return true;
 }
 
+/**
+ * Bascule l'état des messages de bienvenue pour un groupe
+ */
+export async function toggleWelcome(groupId: string, groupName: string = 'Groupe'): Promise<boolean> {
+  const current = getGroupSettings(groupId);
+  const newState = current ? !current.welcome_enabled : true;
+  const currentMessage = current ? current.welcome_message : 'Bienvenue dans le groupe !';
+  
+  await updateGroupSettings(groupId, groupName, newState, currentMessage);
+  return newState;
+}
+
+/**
+ * Définit le message de bienvenue pour un groupe
+ */
+export async function setWelcomeMessage(groupId: string, message: string, groupName: string = 'Groupe'): Promise<void> {
+  const current = getGroupSettings(groupId);
+  const isEnabled = current ? current.welcome_enabled : false;
+  
+  await updateGroupSettings(groupId, groupName, isEnabled, message);
+}
+
 // Initialiser au démarrage
 initGroupSettingsTable().catch(console.error);
