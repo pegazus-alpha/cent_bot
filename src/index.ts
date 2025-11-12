@@ -12,6 +12,9 @@ import qrcode from 'qrcode-terminal';
 import { handleMessage } from './handlers/messageHandler.js';
 import { handleGroupUpdate } from './handlers/groupHandler.js';
 
+// Services  
+import { registerGroup, unregisterGroup } from './services/groupSettings.js';
+
 // Modules (jobs planifiés, rappels, etc.)
 import { startDefaultJobs } from './modules/scheduler.js';
 
@@ -165,6 +168,19 @@ async function start(): Promise<WASocket> {
       isConnected = true;
       isReconnecting = false;
       logger.info('✅ Connecté à WhatsApp avec succès.');
+      
+      // Découvrir et enregistrer automatiquement les groupes
+      (async () => {
+        try {
+          const groups = await sock.groupFetchAllParticipating();
+          for (const [groupId, groupData] of Object.entries(groups)) {
+            await registerGroup(groupId, groupData.subject || 'Groupe sans nom');
+          }
+          console.log(`🔍 ${Object.keys(groups).length} groupes découverts et enregistrés`);
+        } catch (error) {
+          console.warn('⚠️ Impossible de récupérer la liste des groupes:', error);
+        }
+      })();
     } else if (connection === 'connecting') {
       isConnected = false;
       logger.info('🔄 Connexion en cours...');
@@ -190,6 +206,21 @@ async function start(): Promise<WASocket> {
     } catch (e: any) {
       logger.error('❌ Erreur dans groupHandler', e?.message || e);
       // Ne pas faire crasher le bot pour une erreur de groupe
+    }
+  });
+
+  // Détection des nouveaux groupes et départs
+  sock.ev.on('groups.update', async (updates) => {
+    try {
+      for (const update of updates) {
+        if (update.id && update.subject) {
+          // Nouveau groupe ou nom modifié
+          await registerGroup(update.id, update.subject);
+          console.log(`📝 Groupe mis à jour: ${update.subject}`);
+        }
+      }
+    } catch (e: any) {
+      logger.error('❌ Erreur lors de la mise à jour des groupes', e?.message || e);
     }
   });
 

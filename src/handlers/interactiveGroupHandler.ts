@@ -6,11 +6,14 @@
 import type { WASocket } from '@whiskeysockets/baileys';
 import { sessionManager } from '../services/sessionManager.js';
 import { 
+  getAllGroupsWithSettings,
   getAllGroupSettings, 
   isWelcomeEnabled, 
   toggleWelcome, 
   setWelcomeMessage, 
-  getWelcomeMessage 
+  getWelcomeMessage,
+  getGroupSettings,
+  type GroupSetting
 } from '../services/groupSettings.js';
 
 /**
@@ -32,14 +35,15 @@ async function safeSendMessage(sock: WASocket, jid: string, content: any): Promi
 }
 
 /**
- * Récupère la liste des groupes avec leurs noms
+ * Récupère la liste des groupes avec leurs noms depuis la base de données
  */
-async function getGroupsList(sock: WASocket): Promise<Array<{id: string, name: string}>> {
+async function getGroupsList(sock: WASocket): Promise<Array<{id: string, name: string, enabled: boolean}>> {
   try {
-    const groups = await sock.groupFetchAllParticipating();
-    return Object.values(groups).map(group => ({
-      id: group.id,
-      name: group.subject || 'Groupe sans nom'
+    const groups: GroupSetting[] = await getAllGroupsWithSettings();
+    return groups.map((group: GroupSetting) => ({
+      id: group.group_id,
+      name: group.group_name,
+      enabled: group.welcome_enabled
     }));
   } catch (error) {
     console.error('❌ Erreur lors de la récupération des groupes:', error);
@@ -55,7 +59,7 @@ async function showGroupsList(sock: WASocket, userId: string): Promise<void> {
   
   if (groups.length === 0) {
     await safeSendMessage(sock, userId, {
-      text: "❌ Aucun groupe trouvé. Assurez-vous que le bot est ajouté à au moins un groupe."
+      text: "❌ Aucun groupe trouvé.\n\nLe bot doit d'abord être ajouté à des groupes pour pouvoir les configurer."
     });
     sessionManager.endSession(userId);
     return;
@@ -63,16 +67,17 @@ async function showGroupsList(sock: WASocket, userId: string): Promise<void> {
 
   let message = "📋 *Choisissez un groupe :*\n\n";
   groups.forEach((group, index) => {
-    message += `${index + 1}. ${group.name}\n`;
+    const status = group.enabled ? '🟢' : '🔴';
+    message += `${index + 1}. ${status} ${group.name}\n`;
   });
-  message += `\n💡 Tapez le numéro du groupe (ex: 1)`;
+  message += `\n💡 Tapez le numéro du groupe (ex: 1)\n`;
+  message += `❌ Ou tapez *annuler* pour quitter`;
 
   await safeSendMessage(sock, userId, { text: message });
   
   // Sauvegarder la liste des groupes dans la session
   sessionManager.updateSession(userId, { 
     step: 'SELECT_GROUP',
-    // On stocke temporairement la liste dans un Map global pour cette session
   });
   
   // Stocker la liste des groupes temporairement

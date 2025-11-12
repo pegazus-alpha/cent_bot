@@ -6,7 +6,7 @@
 
 import { db } from './db.js';
 
-interface GroupSetting {
+export interface GroupSetting {
   group_id: string;
   group_name: string;
   welcome_enabled: boolean;
@@ -171,6 +171,73 @@ export async function setWelcomeMessage(groupId: string, message: string, groupN
   const isEnabled = current ? current.welcome_enabled : false;
   
   await updateGroupSettings(groupId, groupName, isEnabled, message);
+}
+
+/**
+ * Récupère tous les groupes avec leurs paramètres
+ */
+export async function getAllGroupsWithSettings(): Promise<GroupSetting[]> {
+  return Array.from(groupCache.values());
+}
+
+/**
+ * Enregistre ou met à jour un groupe dans la base
+ */
+export async function registerGroup(groupId: string, groupName: string): Promise<void> {
+  const now = Date.now();
+  
+  try {
+    // Vérifier si le groupe existe déjà
+    const existing = await db('group_welcome_settings')
+      .where('group_id', groupId)
+      .first();
+    
+    if (existing) {
+      // Mettre à jour le nom si nécessaire
+      if (existing.group_name !== groupName) {
+        await db('group_welcome_settings')
+          .where('group_id', groupId)
+          .update({
+            group_name: groupName,
+            updated_at: now
+          });
+        console.log(`📝 Groupe mis à jour: ${groupName}`);
+      }
+    } else {
+      // Créer nouveau groupe (inactif par défaut)
+      await db('group_welcome_settings').insert({
+        group_id: groupId,
+        group_name: groupName,
+        welcome_enabled: false,
+        welcome_message: '',
+        created_at: now,
+        updated_at: now
+      });
+      console.log(`➕ Nouveau groupe enregistré: ${groupName}`);
+    }
+    
+    // Recharger le cache
+    await loadCacheFromDB();
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'enregistrement du groupe:', error);
+  }
+}
+
+/**
+ * Supprime un groupe de la base (quand le bot quitte)
+ */
+export async function unregisterGroup(groupId: string): Promise<void> {
+  try {
+    await db('group_welcome_settings')
+      .where('group_id', groupId)
+      .del();
+    
+    groupCache.delete(groupId);
+    console.log(`➖ Groupe supprimé de la base: ${groupId}`);
+  } catch (error) {
+    console.error('❌ Erreur lors de la suppression du groupe:', error);
+  }
 }
 
 // Initialiser au démarrage
