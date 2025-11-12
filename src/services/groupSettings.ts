@@ -187,34 +187,18 @@ export async function registerGroup(groupId: string, groupName: string): Promise
   const now = Date.now();
   
   try {
-    // Vérifier si le groupe existe déjà
-    const existing = await db('group_welcome_settings')
-      .where('group_id', groupId)
-      .first();
+    // Utiliser INSERT OR REPLACE pour éviter les conflits
+    await db.raw(`
+      INSERT OR REPLACE INTO group_welcome_settings 
+      (group_id, group_name, welcome_enabled, welcome_message, created_at, updated_at)
+      VALUES (?, ?, 
+        COALESCE((SELECT welcome_enabled FROM group_welcome_settings WHERE group_id = ?), false),
+        COALESCE((SELECT welcome_message FROM group_welcome_settings WHERE group_id = ?), ''),
+        COALESCE((SELECT created_at FROM group_welcome_settings WHERE group_id = ?), ?),
+        ?)
+    `, [groupId, groupName, groupId, groupId, groupId, now, now]);
     
-    if (existing) {
-      // Mettre à jour le nom si nécessaire
-      if (existing.group_name !== groupName) {
-        await db('group_welcome_settings')
-          .where('group_id', groupId)
-          .update({
-            group_name: groupName,
-            updated_at: now
-          });
-        console.log(`📝 Groupe mis à jour: ${groupName}`);
-      }
-    } else {
-      // Créer nouveau groupe (inactif par défaut)
-      await db('group_welcome_settings').insert({
-        group_id: groupId,
-        group_name: groupName,
-        welcome_enabled: false,
-        welcome_message: '',
-        created_at: now,
-        updated_at: now
-      });
-      console.log(`➕ Nouveau groupe enregistré: ${groupName}`);
-    }
+    console.log(`✅ Groupe enregistré/mis à jour: ${groupName}`);
     
     // Recharger le cache
     await loadCacheFromDB();
