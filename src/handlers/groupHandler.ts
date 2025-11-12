@@ -1,74 +1,82 @@
 /**
  * Group events: welcome / goodbye / update metadata
+ * Version sécurisée avec gestion des déconnexions
  */
 
 import type { WASocket } from '@whiskeysockets/baileys';
 import { createOrUpdateUser } from '../services/db.js';
 import { isWelcomeEnabled, getWelcomeMessage } from '../services/groupSettings.js';
 
+/**
+ * Fonction sécurisée pour envoyer des messages
+ */
+async function safeSendMessage(sock: WASocket, jid: string, content: any): Promise<boolean> {
+  try {
+    // Vérifier que la socket existe et est connectée
+    if (!sock || typeof sock.sendMessage !== 'function') {
+      console.warn('🚫 Socket non valide pour l\'envoi de message');
+      return false;
+    }
+    
+    await sock.sendMessage(jid, content);
+    return true;
+  } catch (error: any) {
+    console.error('❌ Erreur lors de l\'envoi du message:', error?.message || error);
+    // Si c'est une erreur de connexion, ne pas relancer
+    if (error?.output?.statusCode === 428 || error?.message?.includes('Connection Closed')) {
+      console.warn('⚠️ Connexion fermée, message non envoyé');
+    }
+    return false;
+  }
+}
+
 export async function handleGroupUpdate(sock: WASocket, ev: any) {
   try {
-    if (!ev) return;
+    if (!ev || !sock) return;
+    
     // ev might be a "group-participants.update"
     if (ev.action && (ev.action === 'add' || ev.action === 'remove')) {
       for (const participant of ev.participants) {
         if (ev.action === 'add') {
-          createOrUpdateUser(participant, 'unknown');
+          // Sauvegarder l'utilisateur en base
+          try {
+            await createOrUpdateUser(participant, 'unknown');
+          } catch (dbError) {
+            console.error('❌ Erreur lors de la sauvegarde utilisateur:', dbError);
+          }
           
-          // Envoyer le message de bienvenue en privé
-          await sock.sendMessage(participant, { 
-            text: `👋 Bienvenue dans le groupe ! 
-            
-            📋 Merci de lire attentivement les règles du groupe.
-            🤝 N'hésitez pas à vous présenter et à participer aux discussions.
-            ✨ Bonne intégration !
-
-            *Bienvenue dans la communauté 100% ACADEMY 🎓💚*
-
-            _Ravi de t’avoir avec nous 🙌_
-            Ici, on apprend, on s’entraide et on progresse ensemble.
-
-            *Dans ce groupe, tu vas pouvoir :*
-
-            * Accéder à des opportunités de formations certifiantes
-
-            * Poser tes questions et échanger avec d'autres
-
-            * Recevoir des ressources pour t’aider à avancer 📚
-
-            📢 *Notre chaîne*:
-            https://whatsapp.com/channel/0029VaEJh7WEgGfKGl7Fyd3j
-
-            *Et pour ceux qui souhaitent évoluer encore plus vite, nous proposons aussi :*
-
-            * Cours de soutien en ligne
-
-            * Packs vidéos de formation
-
-            * Formations en ligne
-
-            * Formations en présentiel
-
-
-            > Ici, personne ne te met la pression.
-            Tu avances à ton rythme, avec nous 💚
-
-            *Encore une fois, _bienvenue dans la famille_ 🚀*
-            *100% ACADEMY*` 
+          // Vérifier si les messages de bienvenue sont activés pour ce groupe
+          if (isWelcomeEnabled(ev.id)) {
+            const welcomeMessage = getWelcomeMessage(ev.id);
+            if (welcomeMessage) {
+              // Envoyer le message personnalisé en privé avec retry
+              const success = await safeSendMessage(sock, participant, { 
+                text: welcomeMessage
+              });
+              
+              if (success) {
+                console.log(`📨 Message de bienvenue envoyé à ${participant} pour le groupe ${ev.id}`);
+              } else {
+                console.warn(`⚠️ Échec de l'envoi du message de bienvenue à ${participant}`);
+              }
+            }
+          } else {
+            console.log(`⏸️ Messages de bienvenue désactivés pour le groupe ${ev.id}`);
+          }
+          
+        } else if (ev.action === 'remove') {
+          // Message de départ (optionnel, peut aussi être configuré)
+          const success = await safeSendMessage(sock, participant, { 
+            text: `👋 Au revoir ! Vous avez quitté le groupe. Vous êtes toujours le bienvenu si vous souhaitez revenir.`
           });
           
-          // Message discret dans le groupe (optionnel)
-          // await sock.sendMessage(ev.id, { 
-          //   text: `👋 Bienvenue @${participant.split('@')[0]} !`, 
-          //   mentions: [participant]
-          // });
-          
-        } else {
-          await sock.sendMessage(participant, { text: `voulez vous vraiment nous quitter?`});
+          if (success) {
+            console.log(`📨 Message d'au revoir envoyé à ${participant}`);
+          }
         }
       }
     }
-  } catch (e) {
-    console.error('handleGroupUpdate error', e);
+  } catch (e: any) {
+    console.error('handleGroupUpdate error:', e?.message || e);
   }
 }

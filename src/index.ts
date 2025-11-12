@@ -23,6 +23,57 @@ import { config } from './config.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
+// Variables globales pour l'état de connexion
+let isConnected = false;
+let currentSocket: WASocket | null = null;
+let isReconnecting = false;
+
+// Gestion des erreurs non capturées
+process.on('uncaughtException', (error) => {
+  console.error('💥 Erreur non capturée:', error);
+  // Ne pas quitter le processus, juste logger
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Promise rejetée non gérée:', reason);
+});
+
+/**
+ * Fonction utilitaire pour vérifier la connexion
+ */
+export function isSocketConnected(): boolean {
+  return isConnected && currentSocket !== null;
+}
+
+/**
+ * Fonction utilitaire pour envoyer des messages en sécurité
+ */
+export async function safeSendMessage(jid: string, content: any): Promise<boolean> {
+  if (!isSocketConnected()) {
+    console.warn('🚫 Impossible d\'envoyer un message: socket non connecté');
+    return false;
+  }
+  
+  try {
+    await currentSocket!.sendMessage(jid, content);
+    return true;
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'envoi du message:', error);
+    return false;
+  }
+}
+
+// Gestion globale des erreurs non capturées
+process.on('uncaughtException', (error) => {
+  console.error('💥 Exception non capturée:', error);
+  // Ne pas faire crasher complètement, log et continue
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 Promesse rejetée non gérée:', reason);
+  // Ne pas faire crasher complètement, log et continue
+});
+
 async function start(): Promise<WASocket> {
   const { state, saveCreds } = await useMultiFileAuthState('./auth_info_baileys');
 
@@ -34,8 +85,14 @@ async function start(): Promise<WASocket> {
   const sock = makeWASocket({
     auth: state,
     version,
-    logger
+    logger,
+    // Paramètres de reconnexion
+    retryRequestDelayMs: 5000,
+    maxMsgRetryCount: 3,
   });
+
+  // Mettre à jour la référence globale
+  currentSocket = sock;
 
   // Sauvegarde automatique des credentials
   sock.ev.on('creds.update', saveCreds);
@@ -53,16 +110,40 @@ async function start(): Promise<WASocket> {
     }
 
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+      isConnected = false;
+      currentSocket = null;
       
-      if (shouldReconnect) {
-        logger.warn('🔌 Connexion fermée. Tentative de reconnexion...');
-        start();
-      } else {
-        logger.error('🚪 Session fermée (logged out)');
+      const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      
+      logger.warn({ message: '🔌 Connexion fermée', statusCode, shouldReconnect });
+      
+      if (shouldReconnect && !isReconnecting) {
+        isReconnecting = true;
+        
+        // Attendre avant de se reconnecter pour éviter le spam
+        setTimeout(async () => {
+          try {
+            logger.info('🔄 Tentative de reconnexion...');
+            await start();
+          } catch (error) {
+            logger.error({ message: '❌ Erreur lors de la reconnexion', error });
+          } finally {
+            isReconnecting = false;
+          }
+        }, 3000); // 3 secondes d'attente
+        
+      } else if (!shouldReconnect) {
+        logger.error('🚪 Session fermée définitivement (logged out)');
+        process.exit(1);
       }
     } else if (connection === 'open') {
+      isConnected = true;
+      isReconnecting = false;
       logger.info('✅ Connecté à WhatsApp avec succès.');
+    } else if (connection === 'connecting') {
+      isConnected = false;
+      logger.info('🔄 Connexion en cours...');
     }
   });
 
@@ -73,7 +154,8 @@ async function start(): Promise<WASocket> {
         await handleMessage(sock, m);
       }
     } catch (e: any) {
-      logger.error('❌ Erreur dans messageHandler', e);
+      logger.error('❌ Erreur dans messageHandler', e?.message || e);
+      // Ne pas faire crasher le bot pour une erreur de message
     }
   });
 
@@ -82,7 +164,8 @@ async function start(): Promise<WASocket> {
     try {
       await handleGroupUpdate(sock, ev);
     } catch (e: any) {
-      logger.error('❌ Erreur dans groupHandler', e);
+      logger.error('❌ Erreur dans groupHandler', e?.message || e);
+      // Ne pas faire crasher le bot pour une erreur de groupe
     }
   });
 
