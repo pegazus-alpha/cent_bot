@@ -18,13 +18,23 @@ async function safeSendMessage(sock: WASocket, jid: string, content: any): Promi
       return false;
     }
     
-    await sock.sendMessage(jid, content);
+    // Ajouter un timeout pour éviter les blocages
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Message timeout')), 15000)
+    );
+    
+    const sendPromise = sock.sendMessage(jid, content);
+    
+    await Promise.race([sendPromise, timeout]);
     return true;
   } catch (error: any) {
     console.error('❌ Erreur lors de l\'envoi du message:', error?.message || error);
-    // Si c'est une erreur de connexion, ne pas relancer
-    if (error?.output?.statusCode === 428 || error?.message?.includes('Connection Closed')) {
-      console.warn('⚠️ Connexion fermée, message non envoyé');
+    // Gestion spécifique des timeouts et connexions fermées
+    if (error?.message?.includes('timeout') || 
+        error?.message?.includes('Timed Out') ||
+        error?.output?.statusCode === 428 || 
+        error?.message?.includes('Connection Closed')) {
+      console.warn('⚠️ Timeout ou connexion fermée, message non envoyé');
     }
     return false;
   }

@@ -63,14 +63,19 @@ export async function safeSendMessage(jid: string, content: any): Promise<boolea
   }
 }
 
-// Gestion globale des erreurs non capturées
+// Gestion des erreurs non capturées
 process.on('uncaughtException', (error) => {
-  console.error('💥 Exception non capturée:', error);
+  console.error('💥 Exception non gérée:', error);
   // Ne pas faire crasher complètement, log et continue
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('💥 Promesse rejetée non gérée:', reason);
+  // Pour les timeouts WhatsApp, ne pas crasher
+  if (reason instanceof Error && reason.message.includes('Timed Out')) {
+    console.warn('⏰ Timeout WhatsApp détecté - connexion instable mais continuons...');
+    return;
+  }
   // Ne pas faire crasher complètement, log et continue
 });
 
@@ -86,9 +91,14 @@ async function start(): Promise<WASocket> {
     auth: state,
     version,
     logger,
-    // Paramètres de reconnexion
-    retryRequestDelayMs: 5000,
-    maxMsgRetryCount: 3,
+    // Paramètres améliorés pour connexions instables
+    retryRequestDelayMs: 10000, // 10 secondes au lieu de 5
+    maxMsgRetryCount: 5, // Plus de tentatives
+    connectTimeoutMs: 60000, // Timeout de connexion de 60 secondes
+    defaultQueryTimeoutMs: 30000, // Timeout des requêtes de 30 secondes
+    keepAliveIntervalMs: 10000, // Keep alive toutes les 10 secondes
+    // Réduire la fréquence des heartbeats
+    markOnlineOnConnect: false,
   });
 
   // Mettre à jour la référence globale
@@ -121,17 +131,31 @@ async function start(): Promise<WASocket> {
       if (shouldReconnect && !isReconnecting) {
         isReconnecting = true;
         
-        // Attendre avant de se reconnecter pour éviter le spam
+        // Attendre plus longtemps avant de se reconnecter pour éviter les timeouts
+        const reconnectDelay = 10000; // 10 secondes d'attente
+        logger.info(`⏳ Attente de ${reconnectDelay/1000}s avant reconnexion...`);
+        
         setTimeout(async () => {
           try {
             logger.info('🔄 Tentative de reconnexion...');
             await start();
-          } catch (error) {
-            logger.error({ message: '❌ Erreur lors de la reconnexion', error });
-          } finally {
-            isReconnecting = false;
+          } catch (error: any) {
+            // Gestion spéciale pour les timeouts
+            if (error?.message?.includes('Timed Out')) {
+              logger.warn('⏰ Timeout lors de la reconnexion - nouvelle tentative dans 30s');
+              setTimeout(() => {
+                isReconnecting = false;
+                // Relancer une reconnexion après timeout
+                if (!isConnected) {
+                  start().catch(console.error);
+                }
+              }, 30000);
+            } else {
+              logger.error({ message: '❌ Erreur lors de la reconnexion', error: error?.message || error });
+              isReconnecting = false;
+            }
           }
-        }, 3000); // 3 secondes d'attente
+        }, reconnectDelay);
         
       } else if (!shouldReconnect) {
         logger.error('🚪 Session fermée définitivement (logged out)');
