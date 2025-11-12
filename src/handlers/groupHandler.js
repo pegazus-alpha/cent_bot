@@ -1,23 +1,19 @@
 /**
  * Group events: welcome / goodbye / update metadata
  */
-
-import type { WASocket } from '@whiskeysockets/baileys';
 import { createOrUpdateUser } from '../services/db.js';
-import { isWelcomeEnabled, getWelcomeMessage } from '../services/groupSettings.js';
-
-export async function handleGroupUpdate(sock: WASocket, ev: any) {
-  try {
-    if (!ev) return;
-    // ev might be a "group-participants.update"
-    if (ev.action && (ev.action === 'add' || ev.action === 'remove')) {
-      for (const participant of ev.participants) {
-        if (ev.action === 'add') {
-          createOrUpdateUser(participant, 'unknown');
-          
-          // Envoyer le message de bienvenue en privé
-          await sock.sendMessage(participant, { 
-            text: `👋 Bienvenue dans le groupe ! 
+export async function handleGroupUpdate(sock, ev) {
+    try {
+        if (!ev)
+            return;
+        // ev might be a "group-participants.update"
+        if (ev.action && (ev.action === 'add' || ev.action === 'remove')) {
+            for (const participant of ev.participants) {
+                if (ev.action === 'add') {
+                    createOrUpdateUser(participant, 'unknown');
+                    // Envoyer le message de bienvenue en privé
+                    await sock.sendMessage(participant, {
+                        text: `👋 Bienvenue dans le groupe ! 
             
             📋 Merci de lire attentivement les règles du groupe.
             🤝 N'hésitez pas à vous présenter et à participer aux discussions.
@@ -54,21 +50,22 @@ export async function handleGroupUpdate(sock: WASocket, ev: any) {
             Tu avances à ton rythme, avec nous 💚
 
             *Encore une fois, _bienvenue dans la famille_ 🚀*
-            *100% ACADEMY*` 
-          });
-          
-          // Message discret dans le groupe (optionnel)
-          // await sock.sendMessage(ev.id, { 
-          //   text: `👋 Bienvenue @${participant.split('@')[0]} !`, 
-          //   mentions: [participant]
-          // });
-          
-        } else {
-          await sock.sendMessage(participant, { text: `voulez vous vraiment nous quitter?`});
+            *100% ACADEMY*`
+                    });
+                    // Message discret dans le groupe (optionnel)
+                    // await sock.sendMessage(ev.id, { 
+                    //   text: `👋 Bienvenue @${participant.split('@')[0]} !`, 
+                    //   mentions: [participant]
+                    // });
+                }
+                else {
+                    await sock.sendMessage(participant, { text: `voulez vous vraiment nous quitter?` });
+                }
+            }
         }
-      }
     }
-  } catch (e) {
-    console.error('handleGroupUpdate error', e);
-  }
+    catch (e) {
+        console.error('handleGroupUpdate error', e);
+    }
 }
+//# sourceMappingURL=groupHandler.js.map

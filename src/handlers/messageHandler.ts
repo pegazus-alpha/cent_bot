@@ -8,6 +8,7 @@
 
 import type { WASocket } from '@whiskeysockets/baileys';
 import { handleCommand } from './commandHandler.js';
+import { handleGroupManagementCommands } from './groupManagementHandler.js';
 import { handleViewOnce } from '../modules/viewonce.js';
 import { moderateMessage } from '../modules/moderation.js';
 import { saveMessage, createOrUpdateUser } from '../services/db.js';
@@ -38,7 +39,13 @@ export async function handleMessage(sock: WASocket, upsert: any) {
       // Commands (messages starting with / or !)
       const text = (message.message?.conversation || message.message?.extendedTextMessage?.text || '').trim();
       if (text && (text.startsWith('/') || text.startsWith('!'))) {
-        await handleCommand(sock, message, text);
+        // D'abord vérifier les commandes de gestion des groupes (privé uniquement)
+        const handled = await handleGroupManagementCommands(sock, message, text);
+        
+        // Si pas géré par les commandes de groupe, essayer les commandes normales
+        if (!handled) {
+          await handleCommand(sock, message, text);
+        }
       }
 
       // TODO: add routing to AI processor (Groq/Ollama) - optional

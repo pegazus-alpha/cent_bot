@@ -15,6 +15,9 @@ import { handleGroupUpdate } from './handlers/groupHandler.js';
 // Modules (jobs planifiés, rappels, etc.)
 import { startDefaultJobs } from './modules/scheduler.js';
 
+// Services - initialisation 
+import './services/groupSettings.js';
+
 // Configuration
 import { config } from './config.js';
 
