@@ -67,10 +67,11 @@ async function showGroupsList(sock: WASocket, userId: string): Promise<void> {
 
   let message = "📋 *Choisissez un groupe :*\n\n";
   groups.forEach((group, index) => {
-    const status = group.enabled ? '🟢' : '🔴';
-    message += `${index + 1}. ${status} ${group.name}\n`;
+    const status = group.enabled ? '🟢 ACTIVÉ' : '🔴 DÉSACTIVÉ';
+    message += `${index + 1}. **${group.name}**\n`;
+    message += `   └ Messages : ${status}\n\n`;
   });
-  message += `\n💡 Tapez le numéro du groupe (ex: 1)\n`;
+  message += `💡 Tapez le numéro du groupe (ex: 1)\n`;
   message += `❌ Ou tapez *annuler* pour quitter`;
 
   await safeSendMessage(sock, userId, { text: message });
@@ -92,11 +93,17 @@ async function showActionsList(sock: WASocket, userId: string, groupId: string, 
   const isEnabled = await isWelcomeEnabled(groupId);
   const currentMessage = await getWelcomeMessage(groupId);
   
-  let message = `🔧 *Actions pour "${groupName}" :*\n\n`;
-  message += `1. ${isEnabled ? '🔴 Désactiver' : '🟢 Activer'} les messages de bienvenue\n`;
+  const status = isEnabled ? '🟢 ACTIVÉ' : '🔴 DÉSACTIVÉ';
+  const toggleAction = isEnabled ? '🔴 Désactiver' : '🟢 Activer';
+  
+  let message = `🔧 *Gestion de "${groupName}"*\n\n`;
+  message += `📊 Statut actuel : ${status}\n\n`;
+  message += `*Actions disponibles :*\n`;
+  message += `1. ${toggleAction} les messages\n`;
   message += `2. ✏️ Modifier le message de bienvenue\n`;
-  message += `3. 📊 Voir les paramètres actuels\n`;
-  message += `\n💡 Tapez le numéro de l'action (ex: 2)`;
+  message += `3. 👁️ Voir les paramètres actuels\n\n`;
+  message += `💡 Tapez le numéro de votre choix (ex: 2)\n`;
+  message += `❌ Ou tapez *annuler* pour quitter`;
 
   await safeSendMessage(sock, userId, { text: message });
   
@@ -114,16 +121,18 @@ async function showCurrentSettings(sock: WASocket, userId: string, groupId: stri
   const isEnabled = await isWelcomeEnabled(groupId);
   const message = await getWelcomeMessage(groupId);
   
-  let response = `📊 *Paramètres actuels pour "${groupName}" :*\n\n`;
-  response += `🔘 Messages de bienvenue : ${isEnabled ? '🟢 Activés' : '🔴 Désactivés'}\n\n`;
+  const status = isEnabled ? '🟢 ACTIVÉ' : '🔴 DÉSACTIVÉ';
   
-  if (message) {
+  let response = `📊 *Paramètres de "${groupName}"*\n\n`;
+  response += `🔧 Statut : ${status}\n\n`;
+  
+  if (message && message.trim()) {
     response += `📝 Message actuel :\n${message}`;
   } else {
-    response += `📝 Message : ❌ Non défini`;
+    response += `📝 Message : _(Aucun message configuré)_`;
   }
   
-  response += `\n\n💡 Tapez /welcome pour modifier ces paramètres`;
+  response += `\n\n💡 Utilisez */welcome* pour modifier ces paramètres`;
 
   await safeSendMessage(sock, userId, { text: response });
   sessionManager.endSession(userId);
@@ -133,11 +142,14 @@ async function showCurrentSettings(sock: WASocket, userId: string, groupId: stri
  * Demande le nouveau message de bienvenue
  */
 async function requestNewMessage(sock: WASocket, userId: string, groupName: string): Promise<void> {
-  const message = `✏️ *Nouveau message pour "${groupName}" :*\n\n` +
-    `📝 Tapez votre message de bienvenue :\n` +
-    `(Vous pouvez utiliser plusieurs lignes)\n\n` +
-    `💡 Tapez /fin quand vous avez terminé\n` +
-    `💡 Tapez /annuler pour abandonner`;
+  const message = `✏️ *Nouveau message de bienvenue pour "${groupName}"*\n\n` +
+    `📝 Tapez votre message (peut être sur plusieurs lignes)\n\n` +
+    `💡 *Instructions :*\n` +
+    `• Écrivez votre message normalement\n` +
+    `• Vous pouvez faire plusieurs envois\n` +
+    `• Tapez */fin* quand c'est terminé\n` +
+    `• Tapez */annuler* pour abandonner\n\n` +
+    `🚀 Commencez à taper votre message :`;
 
   await safeSendMessage(sock, userId, { text: message });
   
@@ -235,18 +247,20 @@ export async function handleInteractiveCommand(sock: WASocket, from: string, bod
           if (groupId && groupName) {
             await setWelcomeMessage(groupId, completeMessage.trim(), groupName);
             await safeSendMessage(sock, userId, {
-              text: `✅ Message de bienvenue mis à jour pour "${groupName}" :\n\n${completeMessage.trim()}`
+              text: `✅ Message de bienvenue enregistré pour "${groupName}"\n\n📝 Message final :\n${completeMessage.trim()}`
             });
           }
         } else {
-          await safeSendMessage(sock, userId, { text: "❌ Message vide. Aucune modification effectuée." });
+          await safeSendMessage(sock, userId, { text: "❌ Aucun message saisi. Aucune modification effectuée." });
         }
         sessionManager.endSession(userId);
       } else {
         // Ajouter la ligne au buffer
         sessionManager.addMessageLine(userId, body);
+        const currentMessage = sessionManager.getCompleteMessage(userId);
+        
         await safeSendMessage(sock, userId, { 
-          text: `📝 Ligne ajoutée. Continuez à taper ou /fin pour terminer.` 
+          text: `📝 Message en cours :\n${currentMessage}\n\n💡 Continuez à taper pour ajouter des lignes\n✅ Tapez */fin* quand c'est terminé\n❌ Ou */annuler* pour abandonner`
         });
       }
       break;
