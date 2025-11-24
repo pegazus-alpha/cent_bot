@@ -26,7 +26,7 @@ export async function handleGroupManagementCommands(sock: WASocket, message: any
   if (!isPrivate) return false;
 
   // TODO: Ajouter ici la vérification que l'utilisateur est autorisé (admin)
-  // if (sender !== 'YOUR_ADMIN_JID@s.whatsapp.net') return false;
+  // if (sender !== 'YOUR_ADMIN_JID@s.whatsapp.net') return false; 
 
   const [cmd, ...args] = text.trim().split(/\s+/);
   
@@ -255,13 +255,19 @@ async function handleGroupDelete(sock: WASocket, from: string, args: string[]) {
  * Affiche l'aide des commandes de gestion
  */
 async function handleGroupHelp(sock: WASocket, from: string) {
-  const help = `🤖 **Commandes de gestion des groupes**
+  const help = `🤖 **Gestion des messages de bienvenue**
 
-📊 **Consultation:**
+✨ **Nouvelle interface interactive (RECOMMANDÉE):**
+• \`/welcome\` - Interface facile étape par étape
+  └ Choix du groupe par numéro
+  └ Actions simplifiées 
+  └ Messages multi-lignes supportés
+
+📊 **Commandes rapides (anciennes):**
 • \`/grouplist\` - Liste tous les groupes configurés
 • \`/groupshow [ID]\` - Détails d'un groupe
 
-⚙️ **Configuration:**
+⚙️ **Configuration avancée:**
 • \`/groupset [ID] enable "Message"\` - Activer avec message
 • \`/groupset [ID] disable\` - Désactiver
 • \`/groupedit [ID] "Nouveau message"\` - Modifier le message
@@ -270,12 +276,22 @@ async function handleGroupHelp(sock: WASocket, from: string) {
 ℹ️ **Aide:**
 • \`/grouphelp\` - Cette aide
 
-**📝 Exemples:**
+**🌟 Exemple avec la nouvelle interface:**
+1. Tapez: \`/welcome\`
+2. Choisissez: \`2\` (pour le 2ème groupe de la liste)
+3. Choisissez: \`2\` (pour modifier le message)
+4. Tapez votre message (même sur plusieurs lignes)
+5. Tapez: \`/fin\` pour terminer
+
+**📝 Exemples anciennes commandes:**
 \`/groupset 123456@g.us enable "Bienvenue !"\`
 \`/groupedit 123456@g.us "Nouveau message"\`
 \`/groupshow 123456@g.us\`
 
-**💡 Note:** Ces commandes ne fonctionnent qu'en message privé.`;
+**💡 Notes importantes:**
+• Ces commandes ne fonctionnent qu'en **message privé**
+• Les messages de bienvenue sont **désactivés par défaut**
+• Utilisez \`/welcome\` pour une expérience plus simple !`;
 
   await sock.sendMessage(from, { text: help });
 }

@@ -216,7 +216,7 @@ async function start(): Promise<WASocket> {
         if (update.id && update.subject) {
           // Nouveau groupe ou nom modifié
           await registerGroup(update.id, update.subject);
-          console.log(`📝 Groupe mis à jour: ${update.subject}`);
+          // console.log(`📝 Groupe mis à jour: ${update.subject}`);
         }
       }
     } catch (e: any) {

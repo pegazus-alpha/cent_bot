@@ -46,7 +46,7 @@ async function loadCacheFromDB() {
   settings.forEach(setting => {
     groupCache.set(setting.group_id, setting);
   });
-  console.log(`📊 Cache groupes chargé: ${groupCache.size} groupes`);
+  // console.log(`📊 Cache groupes chargé: ${groupCache.size} groupes`);
 }
 
 /**
@@ -87,7 +87,7 @@ export async function updateGroupSettings(
 
   // Mise à jour du cache
   groupCache.set(groupId, setting);
-  console.log(`🔄 Groupe mis à jour: ${groupName} (${enabled ? 'activé' : 'désactivé'})`);
+  // console.log(`🔄 Groupe mis à jour: ${groupName} (${enabled ? 'activé' : 'désactivé'})`);
 }
 
 /**
@@ -198,7 +198,7 @@ export async function registerGroup(groupId: string, groupName: string): Promise
         ?)
     `, [groupId, groupName, groupId, groupId, groupId, now, now]);
     
-    console.log(`✅ Groupe enregistré/mis à jour: ${groupName}`);
+    // console.log(`✅ Groupe enregistré/mis à jour: ${groupName}`);
     
     // Recharger le cache
     await loadCacheFromDB();
