@@ -10,7 +10,7 @@ import qrcode from 'qrcode-terminal';
 
 // Handlers
 import { handleMessage } from './handlers/messageHandler.js';
-import { handleGroupUpdate } from './handlers/groupHandler.js';
+import { handleGroupParticipantsUpdate, handleGroupMetadataUpdate } from './handlers/groupHandler.js';
 
 // Services  
 import { registerGroup, unregisterGroup } from './services/groupSettings.js';
@@ -202,7 +202,7 @@ async function start(): Promise<WASocket> {
   // Participants de groupe
   sock.ev.on('group-participants.update', async (ev) => {
     try {
-      await handleGroupUpdate(sock, ev);
+      await handleGroupParticipantsUpdate(sock, ev);
     } catch (e: any) {
       logger.error('❌ Erreur dans groupHandler', e?.message || e);
       // Ne pas faire crasher le bot pour une erreur de groupe
@@ -213,10 +213,23 @@ async function start(): Promise<WASocket> {
   sock.ev.on('groups.update', async (updates) => {
     try {
       for (const update of updates) {
-        if (update.id && update.subject) {
-          // Nouveau groupe ou nom modifié
-          await registerGroup(update.id, update.subject);
-          // console.log(`📝 Groupe mis à jour: ${update.subject}`);
+        if (update.id) {
+          // Fix: `update` is `Partial<GroupMetadata>`, but `handleGroupMetadataUpdate` expects a required `id`.
+          // We create a new object that satisfies the type.
+          const groupUpdateData: { id: string; subject?: string; desc?: string } = {
+            id: update.id,
+          };
+          if (update.subject !== undefined) {
+            groupUpdateData.subject = update.subject;
+          }
+          if (update.desc !== undefined) {
+            groupUpdateData.desc = update.desc;
+          }
+          await handleGroupMetadataUpdate(sock, groupUpdateData);
+          if (update.subject) {
+            // Nouveau groupe ou nom modifié
+            await registerGroup(update.id, update.subject);
+          }
         }
       }
     } catch (e: any) {

@@ -36,12 +36,19 @@ export async function handleViewOnce(sock: WASocket, message: proto.IWebMessageI
     // Save to DB (id = message.key.id)
     saveMessage(message.key.id || `${Date.now()}`, message.key.participant || message.key.remoteJid || 'unknown', message.key.remoteJid || null, `[viewonce ${inner.type}]`, path);
 
-    // Optional: send a copy to the owner / admin account - comment out if you prefer not to auto-forward
-    // Use environment variable BOT_JID (process.env.BOT_JID) instead of undefined `config`
-    await sock.sendMessage(
-      (process.env.BOT_JID || '237679910922@s.whatsapp.net'),
-      { [inner.type]: buffer as any, caption: 'Saved ViewOnce' } as any
-    );
+    // Renvoyer le média dans le même chat pour le rendre visible
+    const remoteJid = message.key.remoteJid;
+    if (remoteJid) {
+      const senderName = message.pushName || message.key.participant?.split('@')[0] || 'Quelqu\'un';
+      await sock.sendMessage(
+        remoteJid,
+        { 
+          [inner.type]: buffer, 
+          caption: `👀 Média "vue unique" envoyé par ${senderName}`
+        } as any,
+        { quoted: message }
+      );
+    }
 
     return path;
   } catch (e) {

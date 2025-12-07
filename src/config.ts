@@ -9,5 +9,21 @@ export const config = {
   instanceName: 'FLAG-WA-BOT',
   warmup: {
     messagesPerHour: 30
+  },
+  moderation: {
+    blockWhatsappLinks: true, // Bloque les liens d'invitation WhatsApp
+    blockImages: false,
+    blockVideos: false,
+    blockAudio: false,
+    blockDocs: false,
+    blockLinks: false,
+    blockMentions: false,
+    bannedWords: ['test', 'motinterdit'], // Liste de mots interdits
+    antiFlood: {
+      enabled: true,
+      messageLimit: 5, // messages
+      timeFrame: 10,   // seconds
+      action: 'warn' as 'warn' | 'kick'
+    }
   }
 };

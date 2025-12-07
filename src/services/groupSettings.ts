@@ -11,6 +11,8 @@ export interface GroupSetting {
   group_name: string;
   welcome_enabled: boolean;
   welcome_message: string;
+  goodbye_enabled: boolean;
+  goodbye_message: string;
   created_at: number;
   updated_at: number;
 }
@@ -28,11 +30,33 @@ export async function initGroupSettingsTable() {
       table.text('group_id').primary();
       table.text('group_name');
       table.boolean('welcome_enabled').defaultTo(false);
-      table.text('welcome_message').defaultTo('');
+      table.text('welcome_message').defaultTo('Bienvenue @user dans le groupe @group');
+      table.boolean('goodbye_enabled').defaultTo(false);
+      table.text('goodbye_message').defaultTo('Au revoir @user, à la prochaine !');
       table.integer('created_at');
       table.integer('updated_at');
     });
     console.log('✅ Table group_welcome_settings créée');
+  } else {
+    // Vérifier et ajouter les colonnes si elles manquent
+    const hasWelcomeMessage = await db.schema.hasColumn('group_welcome_settings', 'welcome_message');
+    if (!hasWelcomeMessage) {
+      await db.schema.alterTable('group_welcome_settings', (table) => {
+        table.text('welcome_message').defaultTo('Bienvenue @user dans le groupe @group');
+      });
+    }
+    const hasGoodbyeEnabled = await db.schema.hasColumn('group_welcome_settings', 'goodbye_enabled');
+    if (!hasGoodbyeEnabled) {
+      await db.schema.alterTable('group_welcome_settings', (table) => {
+        table.boolean('goodbye_enabled').defaultTo(false);
+      });
+    }
+    const hasGoodbyeMessage = await db.schema.hasColumn('group_welcome_settings', 'goodbye_message');
+    if (!hasGoodbyeMessage) {
+      await db.schema.alterTable('group_welcome_settings', (table) => {
+        table.text('goodbye_message').defaultTo('Au revoir @user, à la prochaine !');
+      });
+    }
   }
   await loadCacheFromDB();
 }
@@ -62,32 +86,36 @@ export function getGroupSettings(groupId: string): GroupSetting | null {
 export async function updateGroupSettings(
   groupId: string, 
   groupName: string,
-  enabled: boolean, 
-  message: string = ''
+  settings: Partial<Omit<GroupSetting, 'group_id' | 'group_name' | 'created_at' | 'updated_at'>>
 ): Promise<void> {
   const now = Date.now();
-  const setting: GroupSetting = {
+  const currentSettings = getGroupSettings(groupId);
+
+  const newSettings: GroupSetting = {
     group_id: groupId,
     group_name: groupName,
-    welcome_enabled: enabled,
-    welcome_message: message,
-    created_at: now,
-    updated_at: now
+    welcome_enabled: settings.welcome_enabled ?? currentSettings?.welcome_enabled ?? false,
+    welcome_message: settings.welcome_message ?? currentSettings?.welcome_message ?? 'Bienvenue @user dans le groupe @group',
+    goodbye_enabled: settings.goodbye_enabled ?? currentSettings?.goodbye_enabled ?? false,
+    goodbye_message: settings.goodbye_message ?? currentSettings?.goodbye_message ?? 'Au revoir @user, à la prochaine !',
+    created_at: currentSettings?.created_at ?? now,
+    updated_at: now,
   };
 
   await db('group_welcome_settings')
-    .insert(setting)
+    .insert(newSettings)
     .onConflict('group_id')
     .merge({
-      group_name: groupName,
-      welcome_enabled: enabled,
-      welcome_message: message,
-      updated_at: now
+      group_name: newSettings.group_name,
+      welcome_enabled: newSettings.welcome_enabled,
+      welcome_message: newSettings.welcome_message,
+      goodbye_enabled: newSettings.goodbye_enabled,
+      goodbye_message: newSettings.goodbye_message,
+      updated_at: newSettings.updated_at
     });
 
   // Mise à jour du cache
-  groupCache.set(groupId, setting);
-  // console.log(`🔄 Groupe mis à jour: ${groupName} (${enabled ? 'activé' : 'désactivé'})`);
+  groupCache.set(groupId, newSettings);
 }
 
 /**
@@ -130,14 +158,14 @@ export function getWelcomeMessage(groupId: string): string | null {
  * Active les messages de bienvenue pour un groupe
  */
 export async function enableWelcome(groupId: string, groupName: string, message: string): Promise<void> {
-  await updateGroupSettings(groupId, groupName, true, message);
+  await updateGroupSettings(groupId, groupName, { welcome_enabled: true, welcome_message: message });
 }
 
 /**
  * Désactive les messages de bienvenue pour un groupe
  */
 export async function disableWelcome(groupId: string, groupName: string): Promise<void> {
-  await updateGroupSettings(groupId, groupName, false, '');
+  await updateGroupSettings(groupId, groupName, { welcome_enabled: false });
 }
 
 /**
@@ -147,7 +175,7 @@ export async function updateWelcomeMessage(groupId: string, message: string): Pr
   const current = getGroupSettings(groupId);
   if (!current) return false;
   
-  await updateGroupSettings(groupId, current.group_name, current.welcome_enabled, message);
+  await updateGroupSettings(groupId, current.group_name, { welcome_message: message });
   return true;
 }
 
@@ -157,9 +185,8 @@ export async function updateWelcomeMessage(groupId: string, message: string): Pr
 export async function toggleWelcome(groupId: string, groupName: string = 'Groupe'): Promise<boolean> {
   const current = getGroupSettings(groupId);
   const newState = current ? !current.welcome_enabled : true;
-  const currentMessage = current ? current.welcome_message : 'Bienvenue dans le groupe !';
   
-  await updateGroupSettings(groupId, groupName, newState, currentMessage);
+  await updateGroupSettings(groupId, groupName, { welcome_enabled: newState });
   return newState;
 }
 
@@ -168,9 +195,67 @@ export async function toggleWelcome(groupId: string, groupName: string = 'Groupe
  */
 export async function setWelcomeMessage(groupId: string, message: string, groupName: string = 'Groupe'): Promise<void> {
   const current = getGroupSettings(groupId);
-  const isEnabled = current ? current.welcome_enabled : false;
   
-  await updateGroupSettings(groupId, groupName, isEnabled, message);
+  await updateGroupSettings(groupId, groupName, { welcome_message: message, welcome_enabled: current?.welcome_enabled ?? false });
+}
+
+/**
+ * Vérifie si les messages d'au revoir sont activés pour un groupe
+ */
+export function isGoodbyeEnabled(groupId: string): boolean {
+  const settings = getGroupSettings(groupId);
+  return settings ? settings.goodbye_enabled : false;
+}
+
+/**
+ * Obtient le message d'au revoir d'un groupe
+ */
+export function getGoodbyeMessage(groupId: string): string | null {
+  const settings = getGroupSettings(groupId);
+  return settings && settings.goodbye_enabled ? settings.goodbye_message : null;
+}
+
+/**
+ * Active les messages d'au revoir pour un groupe
+ */
+export async function enableGoodbye(groupId: string, groupName: string, message: string): Promise<void> {
+  await updateGroupSettings(groupId, groupName, { goodbye_enabled: true, goodbye_message: message });
+}
+
+/**
+ * Désactive les messages d'au revoir pour un groupe
+ */
+export async function disableGoodbye(groupId: string, groupName: string): Promise<void> {
+  await updateGroupSettings(groupId, groupName, { goodbye_enabled: false });
+}
+
+/**
+ * Met à jour uniquement le message d'au revoir d'un groupe
+ */
+export async function updateGoodbyeMessage(groupId: string, message: string): Promise<boolean> {
+  const current = getGroupSettings(groupId);
+  if (!current) return false;
+
+  await updateGroupSettings(groupId, current.group_name, { goodbye_message: message });
+  return true;
+}
+
+/**
+ * Bascule l'état des messages d'au revoir pour un groupe
+ */
+export async function toggleGoodbye(groupId: string, groupName: string = 'Groupe'): Promise<boolean> {
+  const current = getGroupSettings(groupId);
+  const newState = current ? !current.goodbye_enabled : true;
+
+  await updateGroupSettings(groupId, groupName, { goodbye_enabled: newState });
+  return newState;
+}
+
+/**
+ * Définit le message d'au revoir pour un groupe
+ */
+export async function setGoodbyeMessage(groupId: string, message: string, groupName: string = 'Groupe'): Promise<void> {
+  await updateGroupSettings(groupId, groupName, { goodbye_message: message });
 }
 
 /**
