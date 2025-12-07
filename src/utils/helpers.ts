@@ -39,8 +39,13 @@ export const getUsername = async (sock: WASocket, jid: string): Promise<string> 
 
             const fetchedContact = await sock.query(queryBody) as BinaryNode;
 
-            const userNode = fetchedContact.content?.find(node => typeof node !== 'string' && node.tag === 'profile')
-                                         ?.content?.find(node => typeof node !== 'string' && node.tag === 'user') as BinaryNode | undefined;
+            let userNode: BinaryNode | undefined;
+            if (Array.isArray(fetchedContact.content)) {
+                const profileNode = fetchedContact.content.find((node: BinaryNode | string | Uint8Array) => typeof node !== 'string' && (node as BinaryNode).tag === 'profile') as BinaryNode | undefined;
+                if (profileNode && Array.isArray(profileNode.content)) {
+                    userNode = profileNode.content.find((node: BinaryNode | string | Uint8Array) => typeof node !== 'string' && (node as BinaryNode).tag === 'user') as BinaryNode | undefined;
+                }
+            }
 
             if (userNode) {
                 return userNode.attrs.name || userNode.attrs.notify || normalizedJid.split('@')[0] as string;
