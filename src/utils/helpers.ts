@@ -1,5 +1,5 @@
 import type { WASocket } from '@whiskeysockets/baileys';
-import { jidNormalizedUser } from '@whiskeysockets/baileys';
+import { jidNormalizedUser, proto } from '@whiskeysockets/baileys';
 
 export const now = () => Date.now();
 
@@ -17,9 +17,15 @@ export const getUsername = async (sock: WASocket, jid: string): Promise<string> 
         const normalizedJid = jidNormalizedUser(jid);
         const user = await sock.onWhatsApp(normalizedJid);
         if (user && user.length > 0 && user[0] && user[0].exists) {
-            const contact = sock.contacts[normalizedJid];
-            if (contact) {
-                return contact.name || contact.notify || normalizedJid.split('@')[0] as string;
+            const fetchedContact = await sock.query({
+                tag: 'iq',
+                type: 'get',
+                query: ['profile', 'query'],
+                content: [{ tag: 'user', attrs: { jid: normalizedJid, type: 'status' } }],
+            }) as proto.Contact;
+
+            if (fetchedContact) {
+                return fetchedContact.name || fetchedContact.notify || normalizedJid.split('@')[0] as string;
             }
         }
     } catch (e) {
