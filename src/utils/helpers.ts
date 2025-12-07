@@ -8,14 +8,14 @@ export const short = (s: string | undefined, l = 100) => {
 };
 
 export const jidToNumber = (jid: string) => {
-  return jid.split('@')[0];
+  return jid.split('@')[0] as string;
 };
 
 export const getUsername = async (sock: WASocket, jid: string): Promise<string> => {
     try {
         const user = await sock.onWhatsApp(jid);
-        if (user && user.length > 0 && user[0].exists) {
-            const fetchedUser = await sock.getContact(jid);
+        if (user && user.length > 0 && user[0] && user[0].exists) {
+            const fetchedUser = await sock.fetchContactInfo(jid);
             return fetchedUser?.name || fetchedUser?.notify || jid.split('@')[0];
         }
     } catch (e) {

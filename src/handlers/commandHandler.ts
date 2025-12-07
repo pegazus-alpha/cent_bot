@@ -145,7 +145,7 @@ export async function handleCommand(sock: WASocket, message: any, text: string) 
           return;
         }
 
-        const kickPromises = mentionedJids.map(jid => sock.groupParticipantsUpdate(from, [jid], 'remove'));
+        const kickPromises = mentionedJids.map((jid: string) => sock.groupParticipantsUpdate(from, [jid], 'remove'));
         await Promise.all(kickPromises);
 
         await sock.sendMessage(from, { text: `✅ ${mentionedJids.length} utilisateur(s) ont été expulsé(s).` }, { quoted: message });
@@ -176,7 +176,7 @@ export async function handleCommand(sock: WASocket, message: any, text: string) 
           return;
         }
 
-        const promotePromises = mentionedJids.map(jid => sock.groupParticipantsUpdate(from, [jid], 'promote'));
+        const promotePromises = mentionedJids.map((jid: string) => sock.groupParticipantsUpdate(from, [jid], 'promote'));
         await Promise.all(promotePromises);
 
         await sock.sendMessage(from, { text: `✅ ${mentionedJids.length} utilisateur(s) ont été promu(s) admin.` }, { quoted: message });
@@ -207,7 +207,7 @@ export async function handleCommand(sock: WASocket, message: any, text: string) 
           return;
         }
 
-        const demotePromises = mentionedJids.map(jid => sock.groupParticipantsUpdate(from, [jid], 'demote'));
+        const demotePromises = mentionedJids.map((jid: string) => sock.groupParticipantsUpdate(from, [jid], 'demote'));
         await Promise.all(demotePromises);
 
         await sock.sendMessage(from, { text: `✅ ${mentionedJids.length} utilisateur(s) ont été démis de leurs fonctions d'admin.` }, { quoted: message });
