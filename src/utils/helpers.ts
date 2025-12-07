@@ -21,7 +21,6 @@ export const getUsername = async (sock: WASocket, jid: string): Promise<string> 
                 tag: 'iq',
                 attrs: {
                     to: 's.whatsapp.net', // Query the WhatsApp server
-                    type: 'get',
                     xmlns: 'profile', // XML namespace for profile queries
                     id: Math.random().toString(36).substring(2, 15), // Unique ID
                 },
@@ -38,10 +37,13 @@ export const getUsername = async (sock: WASocket, jid: string): Promise<string> 
                 }]
             };
 
-            const fetchedContact = await sock.query(queryBody) as proto.IContact;
+            const fetchedContact = await sock.query(queryBody) as BinaryNode;
 
-            if (fetchedContact) {
-                return fetchedContact.name || fetchedContact.notify || normalizedJid.split('@')[0] as string;
+            const userNode = fetchedContact.content?.find(node => typeof node !== 'string' && node.tag === 'profile')
+                                         ?.content?.find(node => typeof node !== 'string' && node.tag === 'user') as BinaryNode | undefined;
+
+            if (userNode) {
+                return userNode.attrs.name || userNode.attrs.notify || normalizedJid.split('@')[0] as string;
             }
         }
     } catch (e) {
