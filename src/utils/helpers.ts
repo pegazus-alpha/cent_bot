@@ -9,7 +9,7 @@ export const short = (s: string | undefined, l = 100) => {
 };
 
 export const jidToNumber = (jid: string) => {
-  return jidNormalizedUser(jid).split('@')[0];
+  return jidNormalizedUser(jid).split('@')[0] as string;
 };
 
 export const getUsername = async (sock: WASocket, jid: string): Promise<string> => {
@@ -17,11 +17,13 @@ export const getUsername = async (sock: WASocket, jid: string): Promise<string> 
         const normalizedJid = jidNormalizedUser(jid);
         const user = await sock.onWhatsApp(normalizedJid);
         if (user && user.length > 0 && user[0] && user[0].exists) {
-            const fetchedUser = await sock.getContact(normalizedJid);
-            return fetchedUser?.name || fetchedUser?.notify || normalizedJid.split('@')[0];
+            const contact = sock.contacts[normalizedJid];
+            if (contact) {
+                return contact.name || contact.notify || normalizedJid.split('@')[0] as string;
+            }
         }
     } catch (e) {
         console.error("Erreur lors de la récupération du nom d'utilisateur:", e);
     }
-    return jid.split('@')[0];
+    return jid.split('@')[0] as string;
 };
